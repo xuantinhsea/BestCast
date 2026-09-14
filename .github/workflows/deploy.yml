@@ -20,10 +20,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      # enablement: true turns Pages on for the repo the first time this runs,
-      # so a fresh fork or a rename does not need anyone to visit Settings
-      # before the deploy step can succeed.
+      # Turns Pages on for the repo when the workflow token is allowed to do
+      # so, which saves a trip to Settings on a fresh fork.
+      #
+      # Non-fatal on purpose: creating a Pages site needs admin rights the
+      # default GITHUB_TOKEN does not always carry, and when it is refused this
+      # step took the whole build down with it — lint, build and the artifact
+      # upload were all skipped over a step whose output nothing here consumes
+      # (VITE_BASE_PATH is set below). Let it fail; if Pages genuinely is not
+      # enabled, the deploy job says so on its own, which is the honest place
+      # for that to surface.
       - uses: actions/configure-pages@v5
+        continue-on-error: true
         with:
           enablement: true
       - uses: actions/setup-node@v4
