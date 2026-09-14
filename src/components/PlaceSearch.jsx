@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { searchPlaces } from '../core/geocode'
 import { Button } from './ui'
+import { useI18n } from '../i18n/context'
 
 /**
  * Town search.
@@ -9,8 +10,12 @@ import { Button } from './ui'
  * the cursor and vanishes on the next tap. Search runs on submit as well as on
  * a pause in typing, because "type and wait for something to happen" is not a
  * pattern everyone has learned — there is always a button to press.
+ *
+ * The query goes to the geocoder in the reader's language, so searching 東京
+ * works and the results come back as 東京都 rather than Tokyo.
  */
 export function PlaceSearch({ onSelect }) {
+  const { t, locale } = useI18n()
   const [query, setQuery] = useState('')
   const [results, setResults] = useState([])
   const [searching, setSearching] = useState(false)
@@ -32,23 +37,26 @@ export function PlaceSearch({ onSelect }) {
     setSearching(true)
     setError(null)
     try {
-      const found = await searchPlaces(q, { signal: controller.signal })
+      const found = await searchPlaces(q, { language: locale, signal: controller.signal })
       if (controller.signal.aborted) return
       setResults(found)
       setSearched(true)
     } catch (err) {
       if (err?.name === 'AbortError') return
-      setError('We could not search just now. Check your connection and try again.')
+      setError(t('location.searchFailed'))
     } finally {
       if (!controller.signal.aborted) setSearching(false)
     }
   }
 
-  // Debounced as-you-type search, so a fast typist doesn't fire six requests.
+  // Debounced as-you-type search, so a fast typist does not fire six requests.
+  // Re-runs on a language change too: the results on screen are in the language
+  // the reader has just left.
   useEffect(() => {
     const id = setTimeout(() => run(query), 450)
     return () => clearTimeout(id)
-  }, [query])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query, locale])
 
   useEffect(() => () => abortRef.current?.abort(), [])
 
@@ -59,14 +67,14 @@ export function PlaceSearch({ onSelect }) {
         className="flex flex-col gap-3"
       >
         <label htmlFor="town" className="text-lg font-semibold text-ink">
-          Search for a town or city
+          {t('location.searchLabel')}
         </label>
         <input
           id="town"
           type="search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="For example: Hanoi"
+          placeholder={t('location.searchPlaceholder')}
           autoComplete="off"
           // A 16px minimum stops iOS Safari zooming the page on focus, which
           // leaves the reader stranded at 2x with the keyboard covering the
@@ -75,7 +83,7 @@ export function PlaceSearch({ onSelect }) {
                      text-xl text-ink placeholder:text-muted"
         />
         <Button type="submit" variant="primary" full disabled={query.trim().length < 2}>
-          {searching ? 'Searching…' : 'Search'}
+          {searching ? t('location.searching') : t('location.search')}
         </Button>
       </form>
 
@@ -83,7 +91,7 @@ export function PlaceSearch({ onSelect }) {
 
       {searched && !searching && results.length === 0 && !error && (
         <p className="mt-4 text-lg text-ink-2">
-          No places matched “{query.trim()}”. Try the name of a larger town nearby.
+          {t('location.noResults', { query: query.trim() })}
         </p>
       )}
 

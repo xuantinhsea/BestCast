@@ -2,11 +2,12 @@ import { useCallback, useEffect, useState } from 'react'
 import { loadSettings, saveSettings, DEFAULT_SETTINGS } from '../core/storage'
 
 /** The three text sizes offered. Anything past 1.35 starts wrapping the big
- *  numbers onto two lines on a small phone, which reads worse than it helps. */
+ *  numbers onto two lines on a small phone, which reads worse than it helps.
+ *  Labelled by translation key, not by an English word. */
 export const TEXT_SCALES = [
-  { value: 1, label: 'Normal' },
-  { value: 1.15, label: 'Large' },
-  { value: 1.32, label: 'Largest' },
+  { value: 1, messageKey: 'settings.textNormal' },
+  { value: 1.15, messageKey: 'settings.textLarge' },
+  { value: 1.32, messageKey: 'settings.textLargest' },
 ]
 
 export function useSettings() {

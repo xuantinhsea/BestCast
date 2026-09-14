@@ -139,7 +139,10 @@ export function Notice({ title, children, action, tone = 'warning' }) {
   )
 }
 
-export function Spinner({ label = 'Getting the forecast…' }) {
+/** `label` is required and always arrives translated — there is no English
+ *  default to fall back to, because a fallback is exactly the thing that ships
+ *  one untranslated word into an otherwise Japanese page. */
+export function Spinner({ label }) {
   return (
     <div className="flex flex-col items-center justify-center gap-3 py-12" role="status">
       <div

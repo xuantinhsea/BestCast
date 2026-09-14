@@ -1,39 +1,99 @@
 /**
- * Fetching every model at once, and turning sixteen disagreeing forecasts into
- * something readable.
+ * Asking several independent weather services the same question at once, and
+ * turning their disagreement into one readable number plus an honest range.
  *
- * The whole point of this app is the disagreement. A single forecast line hides
- * the one fact worth knowing before a flood: whether the models are telling the
- * same story. So nothing here averages the models away — it keeps the range,
- * and it is careful about what counts as an independent opinion.
+ * Nothing here averages the disagreement away. The reader is shown the most
+ * likely value AND how far the services differ about it, because a forecast
+ * presented as a single confident number is the one thing that gets someone
+ * caught out. What the reader is never shown is WHOSE forecast any of it is:
+ * service names, ids and reaches stay inside this module.
  */
 import { MODELS, MODEL_IDS, BEST_MATCH } from './models.js'
 
 const URL = 'https://api.open-meteo.com/v1/forecast'
 
-export const PAST_DAYS = 14
-export const FUTURE_DAYS = 16
+/**
+ * An error the interface can say out loud.
+ *
+ * The message stays in English for the console and for any logging; `key`
+ * is what the screen renders, so the reader is told what went wrong in their
+ * own language. A module this far from the UI has no business holding a
+ * sentence anyone is meant to read.
+ */
+function reportable(key, message) {
+  const err = new Error(message)
+  err.key = key
+  return err
+}
 
-export const VARIABLES = [
-  { id: 'precipitation_sum',  label: 'Rain',          short: 'Rain', unit: ' mm', kind: 'rain',
-    hourly: 'precipitation',   hourlyLabel: 'Rain each hour' },
-  { id: 'temperature_2m_max', label: 'Daytime high',  short: 'High', unit: '°',   kind: 'temp',
-    hourly: 'temperature_2m',  hourlyLabel: 'Temperature each hour' },
-  { id: 'temperature_2m_min', label: 'Overnight low', short: 'Low',  unit: '°',   kind: 'temp',
-    hourly: 'temperature_2m',  hourlyLabel: 'Temperature each hour' },
+/** A week behind for context, a week ahead for planning. */
+export const PAST_DAYS = 7
+export const FUTURE_DAYS = 7
+/** The hourly view, hour by hour. Matched to the forecast half of the daily
+ *  chart so the two tell the same story at different resolutions. Sixteen
+ *  services over four variables for this span is about 42 KB. */
+export const HOURLY_DAYS = 7
+
+/**
+ * The four things the app shows, and nothing else.
+ *
+ * `messageKey` points into the translation dictionary rather than carrying an
+ * English label, so a parameter cannot be rendered untranslated by accident.
+ * `unit` names a formatter in units.js, which converts and prints it.
+ */
+export const PARAMETERS = [
+  {
+    id: 'precipitation',
+    messageKey: 'precipitation',
+    kind: 'rain',
+    unit: 'rain',
+    color: 'rain',
+    daily: 'precipitation_sum',
+    hourly: 'precipitation',
+  },
+  {
+    id: 'precipitationProbability',
+    messageKey: 'precipitationProbability',
+    kind: 'percent',
+    unit: 'percent',
+    color: 'prob',
+    daily: 'precipitation_probability_max',
+    hourly: 'precipitation_probability',
+  },
+  {
+    id: 'temperature',
+    messageKey: 'temperature',
+    kind: 'temp',
+    unit: 'temp',
+    color: 'temp',
+    daily: 'temperature_2m_max',
+    // Daily temperature is the one parameter with two ends worth drawing: the
+    // bar spans the overnight low to the daytime high rather than rising from
+    // an arbitrary baseline, so its height means something.
+    dailyLow: 'temperature_2m_min',
+    hourly: 'temperature_2m',
+  },
+  {
+    id: 'wind',
+    messageKey: 'wind',
+    kind: 'wind',
+    unit: 'wind',
+    color: 'wind',
+    daily: 'wind_speed_10m_max',
+    hourly: 'wind_speed_10m',
+  },
 ]
-export const variableById = (id) => VARIABLES.find((v) => v.id === id) ?? VARIABLES[0]
 
-const DAILY = VARIABLES.map((v) => v.id).join(',')
-// Deduplicated: High and Low share one hourly variable.
-const HOURLY_VARS = [...new Set(VARIABLES.map((v) => v.hourly))]
-const HOURLY = HOURLY_VARS.join(',')
+export const parameterById = (id) => PARAMETERS.find((p) => p.id === id) ?? PARAMETERS[0]
+
+const DAILY_VARS = [...new Set(PARAMETERS.flatMap((p) => [p.daily, p.dailyLow].filter(Boolean)))]
+const HOURLY_VARS = [...new Set(PARAMETERS.map((p) => p.hourly))]
 
 /**
  * Open-Meteo can answer 200 with a body containing bare `nan` tokens, which is
- * not valid JSON — it happens for regional models asked about a point outside
+ * not valid JSON — it happens for regional services asked about a point outside
  * their domain. res.json() throws on it, so the body is parsed by hand and a
- * failure is reported as "this model has nothing here" rather than as a crash.
+ * failure is reported as "this service has nothing here" rather than a crash.
  */
 async function getJson(params, signal) {
   let res
@@ -41,14 +101,14 @@ async function getJson(params, signal) {
     res = await fetch(`${URL}?${params}`, { signal })
   } catch (err) {
     if (err?.name === 'AbortError') throw err
-    throw new Error('No internet connection.')
+    throw reportable('errors.offline', 'No internet connection.')
   }
   const text = await res.text()
   let body = null
   try { body = JSON.parse(text) } catch { /* handled below */ }
 
-  if (!res.ok) throw new Error(body?.reason || `The weather service returned error ${res.status}.`)
-  if (!body) throw new Error('The weather service sent a reply we could not read.')
+  if (!res.ok) throw reportable('errors.service', body?.reason || `The weather service returned error ${res.status}.`)
+  if (!body) throw reportable('errors.unreadable', 'The weather service sent a reply we could not read.')
 
   // The Date header is attached here rather than read at the call site because
   // offline the service worker replays a stored response: the request succeeds,
@@ -59,82 +119,72 @@ async function getJson(params, signal) {
   return body
 }
 
-function baseParams(lat, lon) {
-  return {
-    latitude: String(lat),
-    longitude: String(lon),
-    timezone: 'auto',
-    past_days: String(PAST_DAYS),
-    forecast_days: String(FUTURE_DAYS),
-    daily: DAILY,
-  }
-}
-
 /**
  * Four requests, run together.
  *
- * Best Match cannot ride along with the other ids — passing it alongside them
- * makes the API reject the entire call — so it is always its own request. The
- * daily and hourly windows are separate calls because they want different
- * spans: thirty days of daily totals is 10 KB, but the same span hourly is over
- * 100 KB. Today alone, hourly, is 5 KB, which is worth having.
+ * The blended "most likely" forecast cannot ride along with the individual
+ * services — passing it alongside them makes the API reject the entire call —
+ * so it is always its own request. Daily and hourly are separate calls because
+ * they want different spans.
  */
 export async function fetchEnsemble({ lat, lon, signal }) {
+  const dailyParams = () => ({
+    latitude: String(lat), longitude: String(lon), timezone: 'auto',
+    past_days: String(PAST_DAYS), forecast_days: String(FUTURE_DAYS),
+    daily: DAILY_VARS.join(','),
+  })
   const hourlyParams = () => ({
     latitude: String(lat), longitude: String(lon), timezone: 'auto',
-    forecast_days: '1', hourly: HOURLY,
+    forecast_days: String(HOURLY_DAYS), hourly: HOURLY_VARS.join(','),
   })
 
   const [batch, best, hourlyBatch, hourlyBest] = await Promise.all([
-    getJson(new URLSearchParams({ ...baseParams(lat, lon), models: MODEL_IDS.join(',') }), signal),
-    getJson(new URLSearchParams({ ...baseParams(lat, lon), models: BEST_MATCH }), signal).catch(() => null),
-    // The hourly pair is best-effort: the thirty-day view is the app, and a
-    // failure here must not take it down with it.
+    getJson(new URLSearchParams({ ...dailyParams(), models: MODEL_IDS.join(',') }), signal),
+    getJson(new URLSearchParams({ ...dailyParams(), models: BEST_MATCH }), signal).catch(() => null),
+    // The hourly pair is best-effort: the daily view is the backbone of the
+    // page, and a failure here must not take it down with it.
     getJson(new URLSearchParams({ ...hourlyParams(), models: MODEL_IDS.join(',') }), signal).catch(() => null),
     getJson(new URLSearchParams({ ...hourlyParams(), models: BEST_MATCH }), signal).catch(() => null),
   ])
 
   const days = batch?.daily?.time ?? []
-  if (!days.length) throw new Error('No forecast is available for this place.')
+  if (!days.length) throw reportable('states.noData', 'No forecast is available for this place.')
+
+  // Which services are really the same service here is decided once, from one
+  // signature variable, and applied to every variable — see duplicateGroups.
+  const dailyGroups = duplicateGroups(batch, 'daily', 'temperature_2m_max')
 
   return {
-    fetchedAt: responseTime(batch),
+    fetchedAt: batch?.__receivedAt ?? Date.now(),
     latitude: batch.latitude,
     longitude: batch.longitude,
     timezone: batch.timezone,
+    // Carried so the "today" and "now" marks can be placed in the timezone the
+    // series is actually in. Looking at Tokyo from Hanoi, the browser's clock
+    // is the wrong clock: every label on these axes is Tokyo local time.
+    utcOffsetSeconds: batch.utc_offset_seconds ?? null,
     days: days.map(localDate),
     dayKeys: days,
-    // One entry per variable, each holding every model's series for it.
-    series: Object.fromEntries(VARIABLES.map((v) => [
-      v.id,
-      buildSeries(batch, best, v.id, days.length, 'daily',
-        duplicateGroups(batch, 'daily', 'temperature_2m_max')),
+    daily: Object.fromEntries(DAILY_VARS.map((v) => [
+      v, buildSeries(batch, best, v, days.length, 'daily', dailyGroups),
     ])),
     ...buildHourly(hourlyBatch, hourlyBest),
   }
 }
 
-/** Today's 24 hours, in the same shape as the daily series so one chart and one
- *  summary component can render both. */
+/** Three days of hours, in the same shape as the daily series so one chart
+ *  component can render both. */
 function buildHourly(batch, best) {
   const times = batch?.hourly?.time ?? []
   if (!times.length) return { hours: [], hourlyKeys: [], hourly: null }
+  const groups = duplicateGroups(batch, 'hourly', 'temperature_2m')
   return {
     hours: times.map((t) => new Date(t)),
     hourlyKeys: times,
-    hourly: Object.fromEntries(
-      HOURLY_VARS.map((id) => [
-        id,
-        buildSeries(batch, best, id, times.length, 'hourly',
-          duplicateGroups(batch, 'hourly', 'temperature_2m')),
-      ]),
-    ),
+    hourly: Object.fromEntries(HOURLY_VARS.map((v) => [
+      v, buildSeries(batch, best, v, times.length, 'hourly', groups),
+    ])),
   }
-}
-
-/** Truthful data age even when a service worker replays a stored response. */
-function responseTime(body) {
-  return body?.__receivedAt ?? Date.now()
 }
 
 function localDate(isoDay) {
@@ -143,30 +193,28 @@ function localDate(isoDay) {
 }
 
 /**
- * Which models are actually the same model here.
+ * Which services are actually the same service here.
  *
- * Duplication is a property of the model pair at this location — outside its
- * region a regional model serves a global one, and several serve the *same*
- * global one — so it is decided once, from one signature variable, and then
- * applied to every variable.
+ * Duplication is a property of the pair at this location — outside its region a
+ * regional service falls back to a global one, and several fall back to the
+ * SAME one — so it is decided once and applied to every variable.
  *
- * Deciding it per-variable was wrong in a way that mattered: over a single day,
- * several models forecast zero rain for all 24 hours, producing byte-identical
- * precipitation series. Those models genuinely and independently agree that it
- * will not rain, and collapsing them understated the agreement count.
- * Temperature is the signature because it is continuous and effectively never
- * identical between two genuinely different models.
+ * Deciding it per-variable was wrong in a way that mattered: over a single day
+ * several services forecast zero rain for all 24 hours, producing identical
+ * precipitation series. Those services genuinely and independently agree that
+ * it will not rain, and collapsing them understated the agreement. Temperature
+ * is the signature because it is continuous and effectively never identical
+ * between two genuinely different services.
  */
 function duplicateGroups(batch, block, signatureVar) {
   const bySignature = new Map()
   for (const model of MODELS) {
-    const values = batch[block]?.[`${signatureVar}_${model.id}`]
+    const values = batch?.[block]?.[`${signatureVar}_${model.id}`]
     if (!Array.isArray(values) || !values.some((v) => v != null)) continue
     const key = values.map((v) => (v == null ? '' : v)).join('|')
     if (bySignature.has(key)) bySignature.get(key).push(model.id)
     else bySignature.set(key, [model.id])
   }
-  // model id -> the ids it is identical to (itself first).
   const groupOf = new Map()
   for (const ids of bySignature.values()) {
     for (const id of ids) groupOf.set(id, ids)
@@ -175,16 +223,18 @@ function duplicateGroups(batch, block, signatureVar) {
 }
 
 /**
- * Collects each model's series for one variable, drops the models that returned
- * nothing, and folds together the ones the signature says are the same model.
+ * Collects each service's series for one variable, drops the ones that returned
+ * nothing, folds together the ones the signature says are the same, and reduces
+ * the survivors to a distribution.
  *
- * Counting a regional model's global fallback as a separate forecast would
- * manufacture confidence that does not exist — which is exactly the error this
- * app is built to prevent.
+ * Only the count and the distribution leave this function. The per-service
+ * values are deliberately not carried out: counting a regional fallback as a
+ * separate opinion would manufacture confidence that does not exist, and
+ * carrying the names out would make it possible to render one.
  */
-function buildSeries(batch, best, variable, count, block = 'daily', groupOf = new Map()) {
+function buildSeries(batch, best, variable, count, block, groupOf) {
   const has = (id) => {
-    const v = batch[block]?.[`${variable}_${id}`]
+    const v = batch?.[block]?.[`${variable}_${id}`]
     return Array.isArray(v) && v.some((x) => x != null)
   }
 
@@ -192,55 +242,38 @@ function buildSeries(batch, best, variable, count, block = 'daily', groupOf = ne
   const claimed = new Set()
   for (const model of MODELS) {
     if (claimed.has(model.id) || !has(model.id)) continue
-
-    // Everyone this model is identical to, that also carries this variable.
-    const group = (groupOf.get(model.id) ?? [model.id]).filter(has)
-    for (const id of group) claimed.add(id)
-
-    const others = group.filter((id) => id !== model.id).map((id) => {
-      const m = MODELS.find((x) => x.id === id)
-      return { id, label: m.label, org: m.org }
-    })
-
-    members.push({
-      id: model.id,
-      label: model.label,
-      org: model.org,
-      scope: model.scope,
-      reach: model.reach,
-      values: batch[block][`${variable}_${model.id}`],
-      duplicates: others,
-    })
+    for (const id of (groupOf.get(model.id) ?? [model.id]).filter(has)) claimed.add(id)
+    members.push(batch[block][`${variable}_${model.id}`])
   }
 
   const bestValues = best?.[block]?.[variable] ?? null
+  const stats = computeStats(members, count)
 
   return {
     variable,
-    members,
-    bestMatch: Array.isArray(bestValues) && bestValues.some((v) => v != null) ? bestValues : null,
-    // Models that answered with nothing at all, kept so the app can say so.
-    missing: MODELS.filter((m) => !has(m.id))
-      .map((m) => ({ id: m.id, label: m.label, org: m.org, scope: m.scope })),
-    stats: computeStats(members, count),
+    sources: members.length,
+    // The blended pick when there is one; otherwise the middle of the pack,
+    // which is the same promise to the reader made from what we have.
+    likely: Array.isArray(bestValues) && bestValues.some((v) => v != null)
+      ? bestValues
+      : stats.map((s) => s.median),
+    stats,
   }
 }
 
 /**
- * Per-day distribution across the surviving models.
+ * Per-point distribution across the surviving services.
  *
  * The band is the full min-max, because with a dozen members the extremes are
- * the decision-relevant part — "one model says 90 mm" is the sentence that
- * matters, and a percentile band would hide it. The inner band is the middle
- * half, which shows where the bulk sits, and the line is the median rather than
- * the mean so one outlier cannot drag it.
+ * the decision-relevant part — "it could be 90 mm" is the sentence that
+ * matters, and a percentile band is designed to hide it.
  */
-function computeStats(members, dayCount) {
+function computeStats(members, count) {
   const out = []
-  for (let i = 0; i < dayCount; i++) {
-    const values = members.map((m) => m.values[i]).filter((v) => v != null && !Number.isNaN(v))
+  for (let i = 0; i < count; i++) {
+    const values = members.map((m) => m[i]).filter((v) => v != null && !Number.isNaN(v))
     if (!values.length) {
-      out.push({ count: 0, min: null, max: null, median: null, q1: null, q3: null, spread: null })
+      out.push({ count: 0, min: null, max: null, median: null, spread: null })
       continue
     }
     const sorted = [...values].sort((a, b) => a - b)
@@ -249,8 +282,6 @@ function computeStats(members, dayCount) {
       min: sorted[0],
       max: sorted[sorted.length - 1],
       median: quantile(sorted, 0.5),
-      q1: quantile(sorted, 0.25),
-      q3: quantile(sorted, 0.75),
       spread: sorted[sorted.length - 1] - sorted[0],
     })
   }
@@ -266,90 +297,67 @@ function quantile(sorted, p) {
   return lo === hi ? sorted[lo] : sorted[lo] + (sorted[hi] - sorted[lo]) * (pos - lo)
 }
 
-/** The index of today within the series — the past/future divider. */
-export function todayIndex(dayKeys) {
-  const now = new Date()
-  const key = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
-  const exact = dayKeys.indexOf(key)
-  return exact >= 0 ? exact : PAST_DAYS
-}
+const pad = (n) => String(n).padStart(2, '0')
 
 /**
- * How much the models disagree about one day, said in words.
+ * "Now", as the clock reads at the place being forecast.
  *
- * The thresholds are absolute rather than proportional. A 30 mm spread means
- * "some models say a dry day and some say a flood" whichever way you scale it,
- * and a reader deciding whether to move equipment needs the absolute number.
+ * Every timestamp the API returns is local to that place and carries no zone,
+ * so the marks have to be placed on the same clock. Using the browser's instead
+ * put the "now" rule a day into the future when a reader in Asia looked at a
+ * point in the Pacific — the axis said 14:00 and the rule stood at hour 38.
+ * Falling back to the browser clock is only for a revived cache written before
+ * the offset was stored.
  */
-const RAIN_BANDS = [
-  { max: 2,   label: 'Close agreement', tone: 'good' },
-  { max: 10,  label: 'Broad agreement', tone: 'good' },
-  { max: 30,  label: 'Some disagreement', tone: 'warning' },
-  { max: 60,  label: 'Strong disagreement', tone: 'serious' },
-  { max: Infinity, label: 'No agreement at all', tone: 'critical' },
-]
-
-const TEMP_BANDS = [
-  { max: 1.5, label: 'Close agreement', tone: 'good' },
-  { max: 3,   label: 'Broad agreement', tone: 'good' },
-  { max: 6,   label: 'Some disagreement', tone: 'warning' },
-  { max: 10,  label: 'Strong disagreement', tone: 'serious' },
-  { max: Infinity, label: 'No agreement at all', tone: 'critical' },
-]
-
-export function describeSpread(spread, kind) {
-  if (spread == null) return null
-  const bands = kind === 'rain' ? RAIN_BANDS : TEMP_BANDS
-  return bands.find((b) => spread < b.max) ?? bands[bands.length - 1]
+function placeNow(utcOffsetSeconds) {
+  if (utcOffsetSeconds == null) {
+    const n = new Date()
+    return { y: n.getFullYear(), m: n.getMonth() + 1, d: n.getDate(), h: n.getHours() }
+  }
+  const shifted = new Date(Date.now() + utcOffsetSeconds * 1000)
+  return {
+    y: shifted.getUTCFullYear(), m: shifted.getUTCMonth() + 1,
+    d: shifted.getUTCDate(), h: shifted.getUTCHours(),
+  }
 }
 
-/**
- * The headline: the least agreed-upon day in the week ahead. Picking the worst
- * rather than the average is deliberate — an app for planning around bad
- * weather should surface the day the models cannot settle, not bury it in a
- * mean that looks reassuring.
- */
-export function worstDisagreement(series, dayKeys, from, days = 7) {
-  let worst = null
-  for (let i = from; i < Math.min(from + days, series.stats.length); i++) {
-    const s = series.stats[i]
-    if (s.spread == null || s.count < 2) continue
-    if (!worst || s.spread > worst.spread) worst = { index: i, ...s, day: dayKeys[i] }
-  }
-  return worst
+/** The index of today within the daily series — the past/future divider. */
+export function todayIndex(dayKeys, utcOffsetSeconds = null) {
+  if (!dayKeys?.length) return 0
+  const { y, m, d } = placeNow(utcOffsetSeconds)
+  const exact = dayKeys.indexOf(`${y}-${pad(m)}-${pad(d)}`)
+  // The fallback is not a guess: past_days is what we asked for, so index
+  // PAST_DAYS is today by construction whenever the lookup cannot confirm it.
+  return exact >= 0 ? exact : Math.min(PAST_DAYS, dayKeys.length - 1)
+}
+
+/** Index of the hour we are currently inside, for the "now" rule on the hourly
+ *  chart. Returns -1 when that hour is not in the series. */
+export function nowIndex(hourKeys, utcOffsetSeconds = null) {
+  if (!hourKeys?.length) return -1
+  const { y, m, d, h } = placeNow(utcOffsetSeconds)
+  return hourKeys.indexOf(`${y}-${pad(m)}-${pad(d)}T${pad(h)}:00`)
 }
 
 /**
  * A y-axis ceiling that survives outliers.
  *
- * Daily rainfall is violently skewed: at Hanoi in September one model can
+ * Daily rainfall is violently skewed: at Hanoi in September one service can
  * forecast 330 mm for a single day while the rest sit under 10 mm. Scaling the
- * axis to that peak squashes four readable weeks into the bottom tenth of the
+ * axis to that peak squashes the readable week into the bottom tenth of the
  * chart — the outlier destroys the very comparison the chart exists for.
  *
- * Clipping it away would be worse. "One model predicts 330 mm" is the single
- * most important sentence this app can say to someone with equipment in a
+ * Clipping it away would be worse. "It could be 330 mm" is the single most
+ * important sentence this app can say to someone with equipment in a
  * floodplain. So the axis is set from a high percentile instead of the maximum,
- * and the days that overshoot are marked at the top of the chart WITH their
- * value, so the outlier is stated rather than either hidden or allowed to
- * flatten everything else.
+ * and the columns that overshoot are marked WITH their value, so the outlier is
+ * stated rather than either hidden or allowed to flatten everything else.
  */
 export function robustCeiling(stats, { percentile = 0.85, headroom = 1.2, floor = 10 } = {}) {
   const tops = stats.map((s) => s.max).filter((v) => v != null).sort((a, b) => a - b)
   if (!tops.length) return floor
   const p = tops[Math.min(tops.length - 1, Math.floor((tops.length - 1) * percentile))]
-  // Never cut below the highest median: the central line must always be inside
-  // the plot, whatever the outliers are doing.
   const medians = stats.map((s) => s.median).filter((v) => v != null)
   const medianTop = medians.length ? Math.max(...medians) : 0
   return Math.max(p * headroom, medianTop * 1.15, floor)
-}
-
-/** Index of the hour we are currently inside, for the "now" rule on the hourly
- *  chart. Returns -1 when the series is not today's. */
-export function nowIndex(hourKeys) {
-  if (!hourKeys?.length) return -1
-  const now = new Date()
-  const stamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}T${String(now.getHours()).padStart(2, '0')}:00`
-  return hourKeys.indexOf(stamp)
 }

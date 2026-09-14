@@ -20,6 +20,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # enablement: true turns Pages on for the repo the first time this runs,
+      # so a fresh fork or a rename does not need anyone to visit Settings
+      # before the deploy step can succeed.
+      - uses: actions/configure-pages@v5
+        with:
+          enablement: true
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -29,9 +35,11 @@ jobs:
       - run: npm run build
         env:
           # Pages serves the site from /<repo>/, and the PWA manifest's
-          # start_url and scope are derived from this. Vercel serves from the
+          # start_url and scope are derived from this. Taken from the repository
+          # name rather than written out, so renaming the repo cannot leave a
+          # stale path here that breaks every asset URL. Vercel serves from the
           # domain root and leaves it unset.
-          VITE_BASE_PATH: /model-spread/
+          VITE_BASE_PATH: /${{ github.event.repository.name }}/
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist

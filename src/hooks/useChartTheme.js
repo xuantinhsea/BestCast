@@ -17,23 +17,39 @@ const TOKENS = {
   grid: '--color-hairline',
   axis: '--color-line',
   surface: '--color-surface',
-  band: '--color-band',
-  bandInner: '--color-band-inner',
   selected: '--color-selected',
-  median: '--color-median',
-  best: '--color-best',
-  pinned: '--color-pinned',
-  temp: '--color-temp',
-  tempSoft: '--color-temp-soft',
+  // One solid and one band tint per parameter. The chart is handed the pair by
+  // name — `theme.colors[parameter.color]` — so adding a parameter is a token
+  // pair and a roster entry, not a change to the chart.
   rain: '--color-rain',
-  rainSoft: '--color-rain-soft',
+  rainBand: '--color-rain-band',
+  prob: '--color-prob',
+  probBand: '--color-prob-band',
+  temp: '--color-temp',
+  tempBand: '--color-temp-band',
+  wind: '--color-wind',
+  windBand: '--color-wind-band',
 }
 
 function readTheme() {
   const styles = getComputedStyle(document.documentElement)
-  const out = { rootPx: parseFloat(styles.fontSize) || 18 }
+  const out = {
+    rootPx: parseFloat(styles.fontSize) || 18,
+    // Taken from the stylesheet rather than repeated as a literal in every
+    // ctx.font string, so the charts follow a font change with the rest of the
+    // app instead of quietly staying on system-ui.
+    fontFamily: styles.getPropertyValue('--font-sans').trim() || 'system-ui, sans-serif',
+  }
   for (const [key, prop] of Object.entries(TOKENS)) {
     out[key] = styles.getPropertyValue(prop).trim()
+  }
+  // Grouped by parameter so a chart can ask for its own pair without knowing
+  // which token names happen to spell it.
+  out.colors = {
+    rain: { solid: out.rain, band: out.rainBand },
+    prob: { solid: out.prob, band: out.probBand },
+    temp: { solid: out.temp, band: out.tempBand },
+    wind: { solid: out.wind, band: out.windBand },
   }
   return out
 }

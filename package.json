@@ -1,9 +1,9 @@
 {
-  "name": "model-spread",
+  "name": "bestcast",
   "private": true,
   "version": "1.0.0",
   "type": "module",
-  "description": "Sixteen weather models, side by side, on a phone — two weeks behind and sixteen days ahead.",
+  "description": "A local forecast with its uncertainty shown, in Vietnamese, English and Japanese.",
   "scripts": {
     "dev": "vite",
     "prebuild": "npm run icons",

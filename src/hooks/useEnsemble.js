@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { fetchEnsemble } from '../core/ensemble'
-import { loadCachedForecast, saveCachedForecast } from '../core/storage'
+import { loadCachedForecast, saveCachedForecast, isCachedForecastFresh } from '../core/storage'
 
 const keyOf = (place) => (place ? `${place.lat},${place.lon}` : null)
 
@@ -28,11 +28,18 @@ export function useEnsemble(place) {
     const cached = place ? loadCachedForecast(place.lat, place.lon) : null
     setData(cached)
     setError(null)
-    setLoading(!!place)
+    // A cached forecast from the last quarter of an hour is the answer, not a
+    // placeholder to show while a fresh one loads — so there is no spinner and
+    // the effect below has nothing to do.
+    setLoading(!!place && !isCachedForecastFresh(place.lat, place.lon))
   }
 
   useEffect(() => {
     if (!place) return
+    // Coming back to a place looked at minutes ago should not cost four more
+    // requests: model runs land every few hours, so a quarter of an hour of
+    // cache is free. An explicit refresh bumps `nonce` and skips this.
+    if (nonce === 0 && isCachedForecastFresh(place.lat, place.lon)) return
     const controller = new AbortController()
 
     fetchEnsemble({ lat: place.lat, lon: place.lon, signal: controller.signal })
@@ -45,8 +52,9 @@ export function useEnsemble(place) {
       .catch((err) => {
         if (err?.name === 'AbortError' || controller.signal.aborted) return
         // With a cached ensemble on screen this is a freshness problem, not a
-        // dead end: keep the data and say plainly that it is old.
-        setError(err.message)
+        // dead end: keep the data and say plainly that it is old. What is kept
+        // is a translation key — see reportable() in ensemble.js.
+        setError(err.key ?? 'states.errorBody')
       })
       .finally(() => {
         if (!controller.signal.aborted) setLoading(false)

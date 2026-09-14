@@ -24,9 +24,11 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'apple-touch-icon.png'],
       manifest: {
-        name: 'Model Spread — 16 forecast models',
-        short_name: 'Model Spread',
-        description: 'Sixteen forecast models side by side: where they agree, where they do not, and how far each one reaches.',
+        name: 'BestCast — a forecast, and how sure it is',
+        short_name: 'BestCast',
+        description: 'A local forecast with its uncertainty shown: rain, chance of rain, temperature and wind, day by day and hour by hour.',
+        // The installed shortcut needs one fixed language; the app itself
+        // switches between Vietnamese, English and Japanese at runtime.
         lang: 'en',
         start_url: base,
         scope: base,

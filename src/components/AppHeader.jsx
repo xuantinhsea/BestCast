@@ -1,48 +1,45 @@
 import { WeatherIcon } from './WeatherIcon'
-import { timeAgo } from '../core/plainLanguage'
+import { LanguageSwitcher } from './LanguageSwitcher'
+import { useI18n } from '../i18n/context'
 import { useNow } from '../hooks/useNow'
 
 /**
- * A single line saying where these numbers are for, plus the refresh.
+ * The app's name, the language switcher, and the refresh.
  *
- * The place name lives here rather than inside a screen because it is the one
- * piece of context every screen depends on — a forecast for the wrong town is
- * worse than no forecast, so it should never be more than a glance away.
+ * The language switcher sits in the header rather than in the settings card
+ * further down because a reader who cannot read the interface cannot navigate
+ * to a setting that would fix it. It is the one control that has to be reachable
+ * without understanding anything else on screen.
  */
-export function AppHeader({ place, onRefresh, refreshing, onOpenPlace }) {
+export function AppHeader({ onRefresh, refreshing, canRefresh }) {
+  const { t } = useI18n()
+
   return (
     <header className="safe-top shrink-0 bg-brand text-brand-ink">
       <div className="flex items-center gap-2 px-4 py-3">
-        <button
-          type="button"
-          onClick={onOpenPlace}
-          className="flex-1 min-w-0 text-left min-h-[2.8rem] rounded-lg px-1 active:opacity-80"
-        >
-          <span className="block text-sm font-semibold opacity-85 uppercase tracking-wide">
-            Forecast for
-          </span>
-          <span className="block text-xl font-bold truncate">
-            {place?.name ?? 'Choose a place'}
-          </span>
-        </button>
+        <div className="flex-1 min-w-0">
+          <h1 className="text-xl font-bold truncate">{t('app.name')}</h1>
+          <p className="text-sm opacity-85 truncate">{t('app.tagline')}</p>
+        </div>
+
+        <LanguageSwitcher compact />
 
         <button
           type="button"
           onClick={onRefresh}
-          disabled={refreshing || !place}
-          aria-label="Get the latest forecast"
-          className="shrink-0 min-h-[3rem] min-w-[3rem] px-3 rounded-xl
-                     border-2 border-brand-ink/35 flex items-center gap-2
-                     text-base font-semibold active:opacity-80 disabled:opacity-50"
+          disabled={refreshing || !canRefresh}
+          aria-label={t('header.updateAria')}
+          className="shrink-0 min-h-[2.6rem] min-w-[2.6rem] px-2.5 rounded-lg
+                     border-2 border-brand-ink/35 flex items-center gap-1.5
+                     text-sm font-semibold active:opacity-80 disabled:opacity-50"
         >
-          <svg viewBox="0 0 24 24" width="1.3rem" height="1.3rem" aria-hidden="true"
-               style={{ width: '1.3rem', height: '1.3rem' }}
+          <svg viewBox="0 0 24 24" aria-hidden="true"
+               style={{ width: '1.2rem', height: '1.2rem' }}
                className={refreshing ? 'animate-spin' : ''}>
             <path d="M20 12a8 8 0 1 1-2.6-5.9M20 4v4.5h-4.5"
                   fill="none" stroke="currentColor" strokeWidth="2.3"
                   strokeLinecap="round" strokeLinejoin="round" />
           </svg>
-          <span>{refreshing ? 'Updating' : 'Update'}</span>
         </button>
       </div>
     </header>
@@ -61,6 +58,7 @@ export function AppHeader({ place, onRefresh, refreshing, onOpenPlace }) {
 const STALE_AFTER = 2 * 60 * 60 * 1000
 
 export function FreshnessBar({ online, error, fetchedAt, onRefresh }) {
+  const { t, timeAgo } = useI18n()
   const now = useNow()
   const age = fetchedAt ? now - fetchedAt : null
   const old = age != null && age > STALE_AFTER
@@ -68,11 +66,11 @@ export function FreshnessBar({ online, error, fetchedAt, onRefresh }) {
 
   let message = null
   if (!online) {
-    message = `No internet. ${label ? `Showing what we saved — ${label.replace(/^Updated /, 'updated ')}.` : 'Showing the last forecast we saved.'}`
+    message = label ? t('status.offlineAge', { age: label }) : t('status.offline')
   } else if (error) {
-    message = `Could not reach the weather service. ${label ? `${label}.` : 'Showing a saved forecast.'}`
+    message = label ? t('status.error', { age: label }) : t('status.errorNoAge')
   } else if (old) {
-    message = `${label}. Press Update for the latest.`
+    message = t('status.stale', { age: label })
   }
   if (!message) return null
 
@@ -90,7 +88,7 @@ export function FreshnessBar({ online, error, fetchedAt, onRefresh }) {
           className="shrink-0 min-h-[2.6rem] px-3 rounded-lg border-2 border-ink-2
                      text-base font-bold text-ink active:bg-sunken"
         >
-          Try again
+          {t('status.tryAgain')}
         </button>
       )}
     </div>

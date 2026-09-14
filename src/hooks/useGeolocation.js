@@ -10,23 +10,30 @@ function available() {
     && (window.isSecureContext ?? true)
 }
 
-/** Browser error codes, said the way a person would say them. */
+/**
+ * Browser error codes, mapped to translation keys rather than to sentences.
+ *
+ * The hook has no business holding English: it returns the key and the screen
+ * translates it, so an error raised before a language switch is re-rendered in
+ * the new language instead of being stuck in the old one.
+ */
 function explain(err) {
   switch (err?.code) {
-    case 1: return 'You have not given this app permission to see your location. You can turn it on in your phone settings, or search for your town instead.'
-    case 2: return 'Your phone could not work out where it is. Try again near a window, or search for your town instead.'
-    case 3: return 'Finding your location took too long. Please try again.'
-    default: return 'We could not find your location. Try searching for your town instead.'
+    case 1: return 'location.gps.denied'
+    case 2: return 'location.gps.unavailable'
+    case 3: return 'location.gps.timeout'
+    default: return 'location.gps.failed'
   }
 }
 
 /**
  * Wraps the browser geolocation API.
  *
- * `locate()` is the explicit, button-driven request. `autoLocate()` runs only
- * when permission was already granted on an earlier visit — throwing a system
- * permission prompt at someone the instant the app opens is the fastest way to
- * get a permanent "block", and then the button never works again either.
+ * `locate()` is the explicit, button-driven request. `requestOnOpen()` is the
+ * one made on a first visit with nothing stored: it asks, and whichever way it
+ * resolves it calls back so the caller can fall back to a default city rather
+ * than leaving the reader on an empty page waiting for a decision they may have
+ * already made.
  */
 export function useGeolocation(onLocated) {
   const [locating, setLocating] = useState(false)
@@ -40,7 +47,7 @@ export function useGeolocation(onLocated) {
 
   const request = useCallback((opts = {}) => {
     if (!available()) {
-      setError('This browser cannot use your location. Please search for your town instead.')
+      setError('location.unsupported')
       return
     }
     setLocating(true)
@@ -50,15 +57,18 @@ export function useGeolocation(onLocated) {
         setLocating(false)
         const c = normalizeCoords(pos.coords.latitude, pos.coords.longitude)
         if (!c) {
-          setError('Your phone reported a location we could not read.')
+          setError('location.gps.unreadable')
+          opts.onSettled?.(false)
           return
         }
         cb.current?.(c)
+        opts.onSettled?.(true)
       },
       (err) => {
         setLocating(false)
-        // A silent auto-locate must never raise a message nobody asked for.
+        // A silent request must never raise a message nobody asked for.
         if (!opts.silent) setError(explain(err))
+        opts.onSettled?.(false)
       },
       { enableHighAccuracy: true, timeout: 15000, maximumAge: 300000 },
     )
@@ -66,16 +76,18 @@ export function useGeolocation(onLocated) {
 
   const locate = useCallback(() => request(), [request])
 
-  const autoLocate = useCallback(async () => {
-    if (!available() || !navigator.permissions?.query) return
-    try {
-      const status = await navigator.permissions.query({ name: 'geolocation' })
-      if (status.state === 'granted') request({ silent: true })
-    } catch {
-      // Firefox has historically thrown on this permission name. No silent
-      // locate there; the button still works.
-    }
+  /**
+   * The opening request, made once when there is no stored place.
+   *
+   * Silent: a reader who declines gets the fallback city and a line inviting
+   * them to search, not an error box explaining a dialog they just dismissed on
+   * purpose. `onSettled` fires either way so the caller can fall back without
+   * having to time it.
+   */
+  const requestOnOpen = useCallback((onSettled) => {
+    if (!available()) { onSettled?.(false); return }
+    request({ silent: true, onSettled })
   }, [request])
 
-  return { locate, autoLocate, locating, error, supported, clearError: () => setError(null) }
+  return { locate, requestOnOpen, locating, error, supported, clearError: () => setError(null) }
 }
