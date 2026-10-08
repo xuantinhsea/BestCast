@@ -90,6 +90,26 @@ const DAILY_VARS = [...new Set(PARAMETERS.flatMap((p) => [p.daily, p.dailyLow].f
 const HOURLY_VARS = [...new Set(PARAMETERS.map((p) => p.hourly))]
 
 /**
+ * What the phone screen needs beyond the four reconciled parameters: the kind
+ * of weather, how it feels, and the sky.
+ *
+ * These ride along on the two blended requests that are made anyway, rather
+ * than being asked of all sixteen services — a weather code or a UV index is a
+ * description, not a figure whose disagreement the reader needs to see, and
+ * asking sixteen services for ten more variables would multiply the payload
+ * for nothing. So they cost no extra request.
+ */
+const DETAIL_DAILY_VARS = ['weather_code', 'sunrise', 'sunset', 'uv_index_max']
+const DETAIL_HOURLY_VARS = [
+  'weather_code', 'is_day', 'apparent_temperature', 'relative_humidity_2m', 'dew_point_2m',
+  'uv_index', 'visibility', 'pressure_msl', 'wind_direction_10m', 'wind_gusts_10m',
+]
+const CURRENT_VARS = [
+  'temperature_2m', 'apparent_temperature', 'relative_humidity_2m', 'is_day', 'weather_code',
+  'precipitation', 'wind_speed_10m', 'wind_direction_10m', 'wind_gusts_10m', 'pressure_msl',
+]
+
+/**
  * Open-Meteo can answer 200 with a body containing bare `nan` tokens, which is
  * not valid JSON — it happens for regional services asked about a point outside
  * their domain. res.json() throws on it, so the body is parsed by hand and a
@@ -140,11 +160,18 @@ export async function fetchEnsemble({ lat, lon, signal }) {
 
   const [batch, best, hourlyBatch, hourlyBest] = await Promise.all([
     getJson(new URLSearchParams({ ...dailyParams(), models: MODEL_IDS.join(',') }), signal),
-    getJson(new URLSearchParams({ ...dailyParams(), models: BEST_MATCH }), signal).catch(() => null),
+    getJson(new URLSearchParams({
+      ...dailyParams(), models: BEST_MATCH,
+      daily: [...DAILY_VARS, ...DETAIL_DAILY_VARS].join(','),
+    }), signal).catch(() => null),
     // The hourly pair is best-effort: the daily view is the backbone of the
     // page, and a failure here must not take it down with it.
     getJson(new URLSearchParams({ ...hourlyParams(), models: MODEL_IDS.join(',') }), signal).catch(() => null),
-    getJson(new URLSearchParams({ ...hourlyParams(), models: BEST_MATCH }), signal).catch(() => null),
+    getJson(new URLSearchParams({
+      ...hourlyParams(), models: BEST_MATCH,
+      hourly: [...HOURLY_VARS, ...DETAIL_HOURLY_VARS].join(','),
+      current: CURRENT_VARS.join(','),
+    }), signal).catch(() => null),
   ])
 
   const days = batch?.daily?.time ?? []
@@ -169,13 +196,15 @@ export async function fetchEnsemble({ lat, lon, signal }) {
       v, buildSeries(batch, best, v, days.length, 'daily', dailyGroups),
     ])),
     ...buildHourly(hourlyBatch, hourlyBest),
+    details: buildDetails(days, best, hourlyBatch, hourlyBest),
   }
 }
 
-/** Three days of hours, in the same shape as the daily series so one chart
- *  component can render both. */
+/** A week of hours, in the same shape as the daily series so one chart
+ *  component can render both. If the sixteen-service request failed but the
+ *  blended one answered, the blended hours still make a usable strip. */
 function buildHourly(batch, best) {
-  const times = batch?.hourly?.time ?? []
+  const times = batch?.hourly?.time ?? best?.hourly?.time ?? []
   if (!times.length) return { hours: [], hourlyKeys: [], hourly: null }
   const groups = duplicateGroups(batch, 'hourly', 'temperature_2m')
   return {
@@ -185,6 +214,41 @@ function buildHourly(batch, best) {
       v, buildSeries(batch, best, v, times.length, 'hourly', groups),
     ])),
   }
+}
+
+/**
+ * The descriptive extras, lined up with the series they belong to.
+ *
+ * Each block is re-indexed by its own time keys rather than assumed to share
+ * the main series' order, so a reply that starts an hour later or ends a day
+ * early leaves gaps instead of shifting every icon onto the wrong hour.
+ * Every part may be missing — a forecast cached before these existed has none
+ * of them, and the screen falls back to what the four parameters can say.
+ */
+function buildDetails(dayKeys, best, hourlyBatch, hourlyBest) {
+  const hourKeys = hourlyBatch?.hourly?.time ?? hourlyBest?.hourly?.time ?? []
+  const current = hourlyBest?.current
+  return {
+    current: current && typeof current === 'object'
+      ? Object.fromEntries(['time', ...CURRENT_VARS].map((v) => [v, current[v] ?? null]))
+      : null,
+    daily: alignBlock(best?.daily, dayKeys, DETAIL_DAILY_VARS),
+    hourly: alignBlock(hourlyBest?.hourly, hourKeys, DETAIL_HOURLY_VARS),
+  }
+}
+
+function alignBlock(block, keys, vars) {
+  if (!block?.time?.length || !keys.length) return null
+  const at = new Map(block.time.map((k, i) => [k, i]))
+  const out = {}
+  for (const v of vars) {
+    const values = block[v]
+    out[v] = keys.map((k) => {
+      const i = at.get(k)
+      return i == null || !Array.isArray(values) ? null : values[i] ?? null
+    })
+  }
+  return out
 }
 
 function localDate(isoDay) {
@@ -308,13 +372,16 @@ const pad = (n) => String(n).padStart(2, '0')
  * point in the Pacific — the axis said 14:00 and the rule stood at hour 38.
  * Falling back to the browser clock is only for a revived cache written before
  * the offset was stored.
+ *
+ * `nowMs` lets a caller pass the clock it already holds (useNow), so the marks
+ * move on as the minutes tick rather than staying where they were at fetch time.
  */
-function placeNow(utcOffsetSeconds) {
+function placeNow(utcOffsetSeconds, nowMs = Date.now()) {
   if (utcOffsetSeconds == null) {
-    const n = new Date()
+    const n = new Date(nowMs)
     return { y: n.getFullYear(), m: n.getMonth() + 1, d: n.getDate(), h: n.getHours() }
   }
-  const shifted = new Date(Date.now() + utcOffsetSeconds * 1000)
+  const shifted = new Date(nowMs + utcOffsetSeconds * 1000)
   return {
     y: shifted.getUTCFullYear(), m: shifted.getUTCMonth() + 1,
     d: shifted.getUTCDate(), h: shifted.getUTCHours(),
@@ -322,9 +389,9 @@ function placeNow(utcOffsetSeconds) {
 }
 
 /** The index of today within the daily series — the past/future divider. */
-export function todayIndex(dayKeys, utcOffsetSeconds = null) {
+export function todayIndex(dayKeys, utcOffsetSeconds = null, nowMs = undefined) {
   if (!dayKeys?.length) return 0
-  const { y, m, d } = placeNow(utcOffsetSeconds)
+  const { y, m, d } = placeNow(utcOffsetSeconds, nowMs)
   const exact = dayKeys.indexOf(`${y}-${pad(m)}-${pad(d)}`)
   // The fallback is not a guess: past_days is what we asked for, so index
   // PAST_DAYS is today by construction whenever the lookup cannot confirm it.
@@ -333,9 +400,9 @@ export function todayIndex(dayKeys, utcOffsetSeconds = null) {
 
 /** Index of the hour we are currently inside, for the "now" rule on the hourly
  *  chart. Returns -1 when that hour is not in the series. */
-export function nowIndex(hourKeys, utcOffsetSeconds = null) {
+export function nowIndex(hourKeys, utcOffsetSeconds = null, nowMs = undefined) {
   if (!hourKeys?.length) return -1
-  const { y, m, d, h } = placeNow(utcOffsetSeconds)
+  const { y, m, d, h } = placeNow(utcOffsetSeconds, nowMs)
   return hourKeys.indexOf(`${y}-${pad(m)}-${pad(d)}T${pad(h)}:00`)
 }
 

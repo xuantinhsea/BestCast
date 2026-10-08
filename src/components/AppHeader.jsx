@@ -4,42 +4,43 @@ import { useI18n } from '../i18n/context'
 import { useNow } from '../hooks/useNow'
 
 /**
- * The app's name, the language switcher, and the refresh.
+ * The strip along the top of the forecast screen: the language switcher and
+ * the way into the settings.
  *
- * The language switcher sits in the header rather than in the settings card
- * further down because a reader who cannot read the interface cannot navigate
- * to a setting that would fix it. It is the one control that has to be reachable
- * without understanding anything else on screen.
+ * The language switcher stays out here rather than only inside the settings
+ * because a reader who cannot read the interface cannot find a setting that
+ * would fix it. It is the one control that has to be reachable without
+ * understanding anything else on screen. Settings is a worded button, not a
+ * bare cog: a pictogram alone is a guess.
+ *
+ * At the largest text size on a small phone the two do not fit on one line;
+ * the settings button then wraps to its own line, right-aligned, rather than
+ * either control being cut off.
+ *
+ * The app's name is not repeated here — the place name below is the heading
+ * a weather screen needs, and the name is in the browser's title and on the
+ * installed icon already.
  */
-export function AppHeader({ onRefresh, refreshing, canRefresh }) {
+export function AppHeader({ onOpenSettings }) {
   const { t } = useI18n()
 
   return (
-    <header className="safe-top shrink-0 bg-brand text-brand-ink">
-      <div className="flex items-center gap-2 px-4 py-3">
-        <div className="flex-1 min-w-0">
-          <h1 className="text-xl font-bold truncate">{t('app.name')}</h1>
-          <p className="text-sm opacity-85 truncate">{t('app.tagline')}</p>
-        </div>
-
-        <LanguageSwitcher compact />
+    <header className="safe-top shrink-0 text-white">
+      <div className="flex flex-wrap items-center justify-between gap-2 px-3.5 pt-2 pb-1">
+        <LanguageSwitcher compact onSky />
 
         <button
           type="button"
-          onClick={onRefresh}
-          disabled={refreshing || !canRefresh}
-          aria-label={t('header.updateAria')}
-          className="shrink-0 min-h-[2.6rem] min-w-[2.6rem] px-2.5 rounded-lg
-                     border-2 border-brand-ink/35 flex items-center gap-1.5
-                     text-sm font-semibold active:opacity-80 disabled:opacity-50"
+          onClick={onOpenSettings}
+          aria-haspopup="dialog"
+          className="ml-auto shrink-0 min-h-[2.75rem] px-3 rounded-lg border-2 border-white/50 bg-black/15
+                     flex items-center gap-1.5 whitespace-nowrap text-sm font-semibold active:bg-black/30"
         >
-          <svg viewBox="0 0 24 24" aria-hidden="true"
-               style={{ width: '1.2rem', height: '1.2rem' }}
-               className={refreshing ? 'animate-spin' : ''}>
-            <path d="M20 12a8 8 0 1 1-2.6-5.9M20 4v4.5h-4.5"
-                  fill="none" stroke="currentColor" strokeWidth="2.3"
-                  strokeLinecap="round" strokeLinejoin="round" />
+          <svg viewBox="0 0 24 24" aria-hidden="true" style={{ width: '1.2rem', height: '1.2rem' }}>
+            <path d="M12 8.6a3.4 3.4 0 1 0 0 6.8 3.4 3.4 0 0 0 0-6.8Z M19.4 13.5l1.6 1.2-1.8 3.1-1.9-.7a7.6 7.6 0 0 1-2 1.2l-.3 2h-3.6l-.3-2a7.6 7.6 0 0 1-2-1.2l-1.9.7-1.8-3.1 1.6-1.2a7.7 7.7 0 0 1 0-3l-1.6-1.2 1.8-3.1 1.9.7a7.6 7.6 0 0 1 2-1.2l.3-2h3.6l.3 2a7.6 7.6 0 0 1 2 1.2l1.9-.7 1.8 3.1-1.6 1.2a7.7 7.7 0 0 1 0 3Z"
+                  fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
           </svg>
+          <span>{t('settings.title')}</span>
         </button>
       </div>
     </header>

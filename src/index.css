@@ -1,5 +1,4 @@
 @import "tailwindcss";
-@import "leaflet/dist/leaflet.css";
 
 /* ---------------------------------------------------------------------------
    Design tokens.
@@ -180,7 +179,7 @@ body {
    stacked declarations because the CSS minifier dedupes same-property
    declarations and silently drops the fallback.
 --------------------------------------------------------------------------- */
-.app-shell { height: 100vh; }
+.app-shell { height: 100vh; overflow: hidden; }
 @supports (height: 100dvh) {
   .app-shell { height: 100dvh; }
 }
@@ -213,6 +212,100 @@ body {
   color: var(--color-muted) !important;
 }
 .leaflet-control-attribution a { color: var(--color-muted) !important; }
+
+/* ---------------------------------------------------------------------------
+   The forecast screen.
+
+   The background is the sky now: a two-stop gradient picked in App.jsx from
+   the current conditions (core/conditions.js holds the palettes). It stays a
+   dark-enough blue or grey in both colour schemes, so the text on it is white
+   whatever the system is set to, and the cards on it are a translucent black
+   rather than the page surface.
+
+   Contrast: pure white clears 4.5:1 against every sky; the dimmed white
+   (.glass-dim) only does so inside a card, where the black wash darkens the
+   sky behind it — so dimmed text is never placed directly on the sky.
+--------------------------------------------------------------------------- */
+.sky {
+  background: linear-gradient(180deg, var(--sky-top) 0%, var(--sky-bottom) 60%);
+  color: #ffffff;
+}
+.sky :focus-visible { outline-color: #ffffff; }
+
+.glass {
+  background: rgba(0, 0, 0, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 1.25rem;
+}
+.glass-label {
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.8);
+}
+.glass-dim { color: rgba(255, 255, 255, 0.8); }
+/* The chance-of-rain figures: a pale blue that holds 4.5:1 inside a card on
+   the brightest sky, and reads as "rain" before the number is read. */
+.chance-text { color: #bfe3ff; }
+
+/* The big number. Sized against the viewport as well as the text scale, so a
+   three-digit Fahrenheit reading still fits on a small phone at the largest
+   text size. */
+.now-temp { font-size: min(6.2rem, 30vw); }
+
+.tile-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+.tile-unit {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-left: 0.25rem;
+}
+
+/* The week: day, sky, low, bar, high. The columns are fixed rather than
+   sized to their content so the bars line up down the list and share one
+   scale. When the text size leaves too little room for the bar beside the
+   numbers, each day takes two lines — name and sky above, low, bar and high
+   below — rather than squeezing the bar to nothing or cutting the day short. */
+.daily-list { container-type: inline-size; }
+.day-row {
+  display: grid;
+  grid-template-columns: 4.8rem 2.2rem 2.35rem minmax(0, 1fr) 2.35rem;
+  grid-template-areas: "name icon low range high";
+  align-items: center;
+  column-gap: 0.45rem;
+}
+.day-name { grid-area: name; }
+.day-icon { grid-area: icon; }
+.day-low { grid-area: low; }
+.day-range { grid-area: range; }
+.day-high { grid-area: high; }
+@container (max-width: 16rem) {
+  .day-row {
+    grid-template-columns: 2.35rem minmax(0, 1fr) 2.35rem;
+    grid-template-areas: "name name icon" "low range high";
+    row-gap: 0.2rem;
+  }
+}
+
+/* Two tiles a row, or one when the text size would crowd a figure and its
+   unit into half the width. */
+.tiles { container-type: inline-size; }
+@container (max-width: 16rem) {
+  .tile-grid { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* The bottom sheets. dvh for the same reason as the app shell. */
+.sheet-panel { max-height: 92vh; animation: sheet-up 0.22s ease-out; }
+@supports (height: 100dvh) {
+  .sheet-panel { max-height: 92dvh; }
+}
+.sheet-shade { animation: fade-in 0.22s ease-out; }
+@keyframes sheet-up { from { transform: translateY(100%); } to { transform: none; } }
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
 
 /* The horizontal hour strip scrolls; hide the scrollbar but keep the axis. */
 .no-scrollbar { scrollbar-width: none; }

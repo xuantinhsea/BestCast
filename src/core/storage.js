@@ -16,6 +16,7 @@ const KEYS = {
   settings: 'wr.settings',
   forecast: 'wr.forecast',
   locale: 'wr.locale',
+  places: 'wr.places',
 }
 
 function read(key, fallback) {
@@ -41,13 +42,25 @@ function write(key, value) {
 export const loadPlace = () => read(KEYS.place, null)
 export const savePlace = (place) => write(KEYS.place, place)
 
+/** Places looked at recently, newest first — the list in the Locations sheet.
+ *  Only well-formed entries survive a read, so a hand-edited or half-written
+ *  value cannot break the sheet. */
+export const MAX_SAVED_PLACES = 8
+export function loadPlaces() {
+  const list = read(KEYS.places, [])
+  return Array.isArray(list)
+    ? list.filter((p) => p && Number.isFinite(p.lat) && Number.isFinite(p.lon) && typeof p.name === 'string')
+    : []
+}
+export const savePlaces = (places) => write(KEYS.places, places.slice(0, MAX_SAVED_PLACES))
+
 /** The chosen language, remembered across sessions. Stored on its own rather
  *  than inside settings so it can be read before React mounts, without pulling
  *  the rest of the settings shape along with it. */
 export const loadLocale = () => read(KEYS.locale, null)
 export const saveLocale = (code) => write(KEYS.locale, code)
 
-export const DEFAULT_SETTINGS = { units: 'metric', textScale: 1 }
+export const DEFAULT_SETTINGS = { units: 'metric', textScale: 1, showCharts: false }
 export function loadSettings() {
   const stored = read(KEYS.settings, {})
   return { ...DEFAULT_SETTINGS, ...stored }
@@ -93,6 +106,10 @@ export function isCachedForecastFresh(lat, lon, now = Date.now()) {
   // Same shape guard as the loader. These two must agree: "fresh" here and
   // null there is the combination that shows an error over a good forecast.
   if (!Array.isArray(entry.data?.days) || !entry.data.daily) return false
+  // A forecast saved before the phone screen has no conditions-now block.
+  // It still loads — offline it is the best there is — but it is not reused
+  // as current, so the first visit after an update fetches the full set.
+  if (!entry.data.details) return false
   const at = entry.data?.fetchedAt
   return typeof at === 'number' && now - at < CACHE_FRESH_MS
 }

@@ -1,4 +1,5 @@
 import { useEffect, useMemo } from 'react'
+import 'leaflet/dist/leaflet.css'
 import { MapContainer, TileLayer, Marker, useMap, useMapEvents } from 'react-leaflet'
 import L from 'leaflet'
 import { normalizeCoords } from '../core/geocode'

@@ -18,6 +18,8 @@ export const SYSTEMS = {
     tempSymbol: '°C',
     rainSymbol: 'mm',
     windSymbol: 'km/h',
+    pressureSymbol: 'hPa',
+    distanceSymbol: 'km',
   },
   imperial: {
     id: 'imperial',
@@ -26,6 +28,8 @@ export const SYSTEMS = {
     tempSymbol: '°F',
     rainSymbol: 'in',
     windSymbol: 'mph',
+    pressureSymbol: 'inHg',
+    distanceSymbol: 'mi',
   },
 }
 
@@ -71,6 +75,22 @@ export function formatRain(mm, system) {
 export function formatWind(kmh, system) {
   const v = toWind(kmh, system)
   return v == null ? '—' : Math.round(v).toString()
+}
+
+/** Sea-level pressure: whole hectopascals, or inches of mercury to two places. */
+export function formatPressure(hpa, system) {
+  if (!isNum(hpa)) return '—'
+  return system.id === 'imperial' ? (hpa * 0.0295300).toFixed(2) : Math.round(hpa).toString()
+}
+
+/** Visibility arrives in metres. Past ten kilometres the exact figure stops
+ *  meaning anything to someone deciding whether to drive, so it is capped
+ *  there the way most weather apps do. */
+export function formatDistance(metres, system) {
+  if (!isNum(metres)) return '—'
+  const km = Math.min(metres, 10000) / 1000
+  const v = system.id === 'imperial' ? km / 1.609344 : km
+  return v < 1 ? v.toFixed(1) : Math.round(v).toString()
 }
 
 /**

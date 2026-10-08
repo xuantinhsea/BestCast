@@ -9,8 +9,12 @@ import { useI18n } from '../i18n/context'
  *
  * Each option is labelled with its own endonym — see locales.js for why there
  * are no flags beside them.
+ *
+ * `onSky` is the variant for the forecast screen's sky background, which stays
+ * dark in both colour schemes, so it cannot use the scheme-following brand
+ * colours.
  */
-export function LanguageSwitcher({ compact = false }) {
+export function LanguageSwitcher({ compact = false, onSky = false }) {
   const { locale, locales, setLocale, t } = useI18n()
 
   return (
@@ -27,12 +31,15 @@ export function LanguageSwitcher({ compact = false }) {
             // The state is carried by the filled background AND the bold
             // weight, never by colour alone.
             className={`
-              flex items-center justify-center gap-1.5 rounded-lg border-2
-              ${compact ? 'min-h-[2.6rem] px-2 text-sm' : 'min-h-[3.4rem] flex-1 px-3 text-base'}
+              flex items-center justify-center gap-1.5 rounded-lg border-2 whitespace-nowrap
+              ${compact ? 'min-h-[2.75rem] min-w-[2.75rem] px-2 text-sm' : 'min-h-[3.4rem] flex-1 px-3 text-base'}
               leading-tight transition-[background-color] duration-100
-              ${on
-                ? 'bg-brand-ink text-brand border-brand-ink font-bold'
-                : 'bg-transparent text-brand-ink/90 border-brand-ink/35 font-semibold'}
+              ${onSky ? (on
+                ? 'bg-white text-[#0b2a4a] border-white font-bold'
+                : 'bg-black/15 text-white border-white/50 font-semibold')
+                : (on
+                  ? 'bg-brand-ink text-brand border-brand-ink font-bold'
+                  : 'bg-transparent text-brand-ink/90 border-brand-ink/35 font-semibold')}
             `}
           >
             <span>{compact ? l.short : l.name}</span>
