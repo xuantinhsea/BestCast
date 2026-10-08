@@ -34,8 +34,10 @@ export default defineConfig({
         scope: base,
         display: 'standalone',
         orientation: 'portrait',
-        background_color: '#f9f9f7',
-        theme_color: '#1c5cab',
+        // The splash screen and title bar of the installed app open in the
+        // clear-day sky the forecast screen starts from.
+        background_color: '#1b5fae',
+        theme_color: '#1b5fae',
         icons: [
           { src: 'icons/icon-192.png', sizes: '192x192', type: 'image/png' },
           { src: 'icons/icon-512.png', sizes: '512x512', type: 'image/png' },
@@ -85,11 +87,21 @@ export default defineConfig({
   build: {
     rollupOptions: {
       output: {
-        // Split the two heavy always-on libraries out of the app chunk so an
-        // app edit doesn't invalidate them in installed users' caches.
-        manualChunks: {
-          leaflet: ['leaflet', 'react-leaflet'],
-          charts: ['chart.js', 'react-chartjs-2'],
+        // The two heavy libraries get chunks of their own, so an app edit
+        // doesn't invalidate them in installed users' caches. Both are loaded
+        // on demand — the map when someone chooses on it, the charts when they
+        // are opened — so neither is in the first download.
+        //
+        // React gets a chunk of its own too, and that is what keeps the other
+        // two lazy: Rollup places any dependency of a manual chunk that has
+        // no chunk of its own INSIDE it, so React ended up in the chart chunk
+        // and the app's entry had to import — and preload — the whole chart
+        // and map libraries just to reach it.
+        manualChunks(id) {
+          if (/node_modules[\\/](react|react-dom|scheduler)[\\/]/.test(id)) return 'react'
+          if (/node_modules[\\/](leaflet|react-leaflet|@react-leaflet)[\\/]/.test(id)) return 'leaflet'
+          if (/node_modules[\\/](chart\.js|react-chartjs-2|@kurkle)[\\/]/.test(id)) return 'charts'
+          return undefined
         },
       },
     },

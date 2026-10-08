@@ -124,6 +124,7 @@ export const MESSAGES = {
       textNormal: 'Normal',
       textLarge: 'Large',
       textLargest: 'Largest',
+      summary: 'Language, units, text size',
     },
 
     about: {
@@ -133,6 +134,135 @@ export const MESSAGES = {
     },
 
     author: { title: 'Author', rights: 'All rights reserved.' },
+
+    // --- The phone-style forecast screen ---------------------------------------
+    sheet: { done: 'Done' },
+
+    places: {
+      title: 'Locations',
+      change: 'Change place',
+      saved: 'Recent places',
+      current: 'Showing now',
+      remove: 'Remove',
+      removeAria: 'Remove {name} from the list',
+      onMap: 'Choose on the map',
+      mapHint: 'Tap the map to see the forecast for that spot.',
+    },
+
+    now: {
+      tempSr: 'Temperature now: {temp} {unit}',
+      highLow: 'High {high} · Low {low}',
+      feelsLike: 'Feels like {temp}',
+    },
+
+    // What the sky is doing. "sunny" and "mostlySunny" are the daytime words
+    // for "clear" and "mainlyClear".
+    sky: {
+      sunny: 'Sunny',
+      mostlySunny: 'Mostly sunny',
+      clear: 'Clear',
+      mainlyClear: 'Mostly clear',
+      partlyCloudy: 'Partly cloudy',
+      overcast: 'Cloudy',
+      fog: 'Fog',
+      rimeFog: 'Freezing fog',
+      drizzleLight: 'Light drizzle',
+      drizzle: 'Drizzle',
+      drizzleDense: 'Heavy drizzle',
+      freezingDrizzle: 'Freezing drizzle',
+      rainLight: 'Light rain',
+      rain: 'Rain',
+      rainHeavy: 'Heavy rain',
+      freezingRain: 'Freezing rain',
+      snowLight: 'Light snow',
+      snow: 'Snow',
+      snowHeavy: 'Heavy snow',
+      snowGrains: 'Snow grains',
+      showersLight: 'Light showers',
+      showers: 'Showers',
+      showersViolent: 'Heavy showers',
+      snowShowers: 'Snow showers',
+      thunderstorm: 'Thunderstorm',
+      thunderHail: 'Thunderstorm with hail',
+    },
+
+    hourly: {
+      title: 'Next 24 hours',
+      now: 'Now',
+      chance: '{chance}%',
+      sunrise: 'Sunrise',
+      sunset: 'Sunset',
+    },
+
+    outlook: {
+      rain: {
+        nowEasing: 'Rain now, stopping around {time}.',
+        nowContinuing: 'Rain now, and for the next 12 hours.',
+        later: 'Rain likely from around {time}.',
+        dry: 'No rain expected in the next 12 hours.',
+      },
+      snow: {
+        nowEasing: 'Snow now, stopping around {time}.',
+        nowContinuing: 'Snow now, and for the next 12 hours.',
+        later: 'Snow likely from around {time}.',
+        dry: 'No snow expected in the next 12 hours.',
+      },
+    },
+
+    daily: {
+      title: '{count}-day forecast',
+      spreadNote: 'The faint band behind each bar shows how far the forecast services disagree. A wider band means a less certain day.',
+      sky: 'Sky',
+      windMax: 'Strongest wind',
+      spreadTerm: 'Range across all services',
+      spreadValue: '{low} to {high}',
+    },
+
+    tiles: {
+      title: 'Conditions now',
+      uv: 'UV index',
+      uvToday: 'Highest today: {value}.',
+      sunriseAt: 'Sunrise: {time}',
+      sunsetAt: 'Sunset: {time}',
+      wind: 'Wind',
+      windFrom: 'From the {dir}',
+      gusts: 'Gusts up to {speed}.',
+      rainSoFar: 'Today so far',
+      rainNext: '{amount} expected in the next 24 hours.',
+      rainNoneNext: 'None expected in the next 24 hours.',
+      feelsLike: 'Feels like',
+      feelsSame: 'Close to the actual temperature.',
+      feelsHumid: 'Humidity is making it feel warmer.',
+      feelsWarmer: 'Feels warmer than the actual temperature.',
+      feelsWindy: 'The wind is making it feel cooler.',
+      feelsCooler: 'Feels cooler than the actual temperature.',
+      humidity: 'Humidity',
+      dewPoint: 'The dew point is {temp} right now.',
+      visibility: 'Visibility',
+      visClear: 'A clear view.',
+      visReduced: 'Visibility is reduced.',
+      visPoor: 'Very poor visibility. Take care on the roads.',
+      pressure: 'Pressure',
+      pressure_rising: 'Rising over the next three hours.',
+      pressure_falling: 'Falling over the next three hours.',
+      pressure_steady: 'Steady over the next three hours.',
+    },
+
+    uv: { low: 'Low', moderate: 'Moderate', high: 'High', veryHigh: 'Very high', extreme: 'Extreme' },
+
+    // Where the wind comes from. northLetter labels the top of the compass.
+    compass: {
+      northLetter: 'N',
+      n: 'north', ne: 'north-east', e: 'east', se: 'south-east',
+      s: 'south', sw: 'south-west', w: 'west', nw: 'north-west',
+    },
+
+    charts: {
+      title: 'Detailed charts',
+      hint: 'Rain, chance of rain, temperature and wind from every forecast service: two weeks day by day and one week hour by hour, with how far the services disagree.',
+      show: 'Show charts',
+      hide: 'Hide charts',
+    },
   },
 
   vi: {
@@ -243,6 +373,7 @@ export const MESSAGES = {
       textNormal: 'Bình thường',
       textLarge: 'Lớn',
       textLargest: 'Lớn nhất',
+      summary: 'Ngôn ngữ, đơn vị, cỡ chữ',
     },
 
     about: {
@@ -252,6 +383,132 @@ export const MESSAGES = {
     },
 
     author: { title: 'Tác giả', rights: 'Bảo lưu mọi quyền.' },
+
+    // --- Màn hình dự báo kiểu điện thoại ---------------------------------------
+    sheet: { done: 'Xong' },
+
+    places: {
+      title: 'Địa điểm',
+      change: 'Đổi địa điểm',
+      saved: 'Địa điểm gần đây',
+      current: 'Đang xem',
+      remove: 'Xóa',
+      removeAria: 'Xóa {name} khỏi danh sách',
+      onMap: 'Chọn trên bản đồ',
+      mapHint: 'Chạm vào bản đồ để xem dự báo tại điểm đó.',
+    },
+
+    now: {
+      tempSr: 'Nhiệt độ hiện tại: {temp} {unit}',
+      highLow: 'Cao {high} · Thấp {low}',
+      feelsLike: 'Cảm giác như {temp}',
+    },
+
+    sky: {
+      sunny: 'Nắng',
+      mostlySunny: 'Nắng, ít mây',
+      clear: 'Trời quang',
+      mainlyClear: 'Trời quang, ít mây',
+      partlyCloudy: 'Có mây',
+      overcast: 'Nhiều mây',
+      fog: 'Sương mù',
+      rimeFog: 'Sương mù đóng băng',
+      drizzleLight: 'Mưa phùn nhẹ',
+      drizzle: 'Mưa phùn',
+      drizzleDense: 'Mưa phùn dày',
+      freezingDrizzle: 'Mưa phùn băng giá',
+      rainLight: 'Mưa nhỏ',
+      rain: 'Mưa',
+      rainHeavy: 'Mưa to',
+      freezingRain: 'Mưa băng giá',
+      snowLight: 'Tuyết nhẹ',
+      snow: 'Tuyết',
+      snowHeavy: 'Tuyết rơi dày',
+      snowGrains: 'Tuyết hạt',
+      showersLight: 'Mưa rào nhẹ',
+      showers: 'Mưa rào',
+      showersViolent: 'Mưa rào rất to',
+      snowShowers: 'Tuyết rơi từng đợt',
+      thunderstorm: 'Dông',
+      thunderHail: 'Dông kèm mưa đá',
+    },
+
+    hourly: {
+      title: '24 giờ tới',
+      now: 'Bây giờ',
+      chance: '{chance}%',
+      sunrise: 'Bình minh',
+      sunset: 'Hoàng hôn',
+    },
+
+    outlook: {
+      rain: {
+        nowEasing: 'Đang mưa, dự kiến tạnh vào khoảng {time}.',
+        nowContinuing: 'Đang mưa và có thể kéo dài suốt 12 giờ tới.',
+        later: 'Có thể mưa từ khoảng {time}.',
+        dry: 'Không có mưa trong 12 giờ tới.',
+      },
+      snow: {
+        nowEasing: 'Đang có tuyết, dự kiến ngớt vào khoảng {time}.',
+        nowContinuing: 'Đang có tuyết và có thể kéo dài suốt 12 giờ tới.',
+        later: 'Có thể có tuyết từ khoảng {time}.',
+        dry: 'Không có tuyết trong 12 giờ tới.',
+      },
+    },
+
+    daily: {
+      title: 'Dự báo {count} ngày',
+      spreadNote: 'Dải mờ phía sau mỗi thanh cho thấy các dịch vụ dự báo chênh lệch nhau bao nhiêu. Dải càng rộng, ngày đó càng khó đoán.',
+      sky: 'Bầu trời',
+      windMax: 'Gió mạnh nhất',
+      spreadTerm: 'Khoảng nhiệt độ giữa các dịch vụ',
+      spreadValue: 'Từ {low} đến {high}',
+    },
+
+    tiles: {
+      title: 'Điều kiện hiện tại',
+      uv: 'Chỉ số UV',
+      uvToday: 'Cao nhất hôm nay: {value}.',
+      sunriseAt: 'Bình minh: {time}',
+      sunsetAt: 'Hoàng hôn: {time}',
+      wind: 'Gió',
+      windFrom: 'Hướng {dir}',
+      gusts: 'Gió giật tới {speed}.',
+      rainSoFar: 'Từ đầu ngày',
+      rainNext: 'Dự kiến {amount} trong 24 giờ tới.',
+      rainNoneNext: 'Không có mưa trong 24 giờ tới.',
+      feelsLike: 'Cảm giác như',
+      feelsSame: 'Gần với nhiệt độ thực tế.',
+      feelsHumid: 'Độ ẩm cao khiến trời có cảm giác nóng hơn.',
+      feelsWarmer: 'Cảm giác nóng hơn nhiệt độ thực tế.',
+      feelsWindy: 'Gió khiến trời có cảm giác mát hơn.',
+      feelsCooler: 'Cảm giác mát hơn nhiệt độ thực tế.',
+      humidity: 'Độ ẩm',
+      dewPoint: 'Điểm sương hiện là {temp}.',
+      visibility: 'Tầm nhìn',
+      visClear: 'Tầm nhìn tốt.',
+      visReduced: 'Tầm nhìn bị hạn chế.',
+      visPoor: 'Tầm nhìn rất kém. Hãy cẩn thận khi đi đường.',
+      pressure: 'Áp suất',
+      pressure_rising: 'Sẽ tăng trong 3 giờ tới.',
+      pressure_falling: 'Sẽ giảm trong 3 giờ tới.',
+      pressure_steady: 'Ổn định trong 3 giờ tới.',
+    },
+
+    uv: { low: 'Thấp', moderate: 'Trung bình', high: 'Cao', veryHigh: 'Rất cao', extreme: 'Cực kỳ cao' },
+
+    compass: {
+      northLetter: 'B',
+      n: 'Bắc', ne: 'Đông Bắc', e: 'Đông', se: 'Đông Nam',
+      s: 'Nam', sw: 'Tây Nam', w: 'Tây', nw: 'Tây Bắc',
+    },
+
+    charts: {
+      title: 'Biểu đồ chi tiết',
+      hint: 'Lượng mưa, khả năng mưa, nhiệt độ và gió từ mọi dịch vụ dự báo: hai tuần theo ngày và một tuần theo giờ, kèm mức chênh lệch giữa các dịch vụ.',
+      show: 'Xem biểu đồ',
+      hide: 'Ẩn biểu đồ',
+    },
   },
 
   ja: {
@@ -362,6 +619,7 @@ export const MESSAGES = {
       textNormal: '標準',
       textLarge: '大',
       textLargest: '最大',
+      summary: '言語・単位・文字サイズ',
     },
 
     about: {
@@ -371,5 +629,131 @@ export const MESSAGES = {
     },
 
     author: { title: '作成者', rights: 'All rights reserved.' },
+
+    // --- スマートフォン風の予報画面 -------------------------------------------
+    sheet: { done: '完了' },
+
+    places: {
+      title: '地点',
+      change: '地点を変更',
+      saved: '最近の地点',
+      current: '表示中',
+      remove: '削除',
+      removeAria: '{name}を一覧から削除',
+      onMap: '地図で選ぶ',
+      mapHint: '地図をタップすると、その地点の予報を表示します。',
+    },
+
+    now: {
+      tempSr: '現在の気温: {temp}{unit}',
+      highLow: '最高 {high} / 最低 {low}',
+      feelsLike: '体感 {temp}',
+    },
+
+    sky: {
+      sunny: '快晴',
+      mostlySunny: '晴れ',
+      clear: '快晴',
+      mainlyClear: '晴れ',
+      partlyCloudy: '晴れ時々曇り',
+      overcast: '曇り',
+      fog: '霧',
+      rimeFog: '着氷性の霧',
+      drizzleLight: '弱い霧雨',
+      drizzle: '霧雨',
+      drizzleDense: '強い霧雨',
+      freezingDrizzle: '着氷性の霧雨',
+      rainLight: '小雨',
+      rain: '雨',
+      rainHeavy: '大雨',
+      freezingRain: '着氷性の雨',
+      snowLight: '小雪',
+      snow: '雪',
+      snowHeavy: '大雪',
+      snowGrains: '霧雪',
+      showersLight: '弱いにわか雨',
+      showers: 'にわか雨',
+      showersViolent: '激しいにわか雨',
+      snowShowers: 'にわか雪',
+      thunderstorm: '雷雨',
+      thunderHail: 'ひょうを伴う雷雨',
+    },
+
+    hourly: {
+      title: 'これから24時間',
+      now: '今',
+      chance: '{chance}%',
+      sunrise: '日の出',
+      sunset: '日の入り',
+    },
+
+    outlook: {
+      rain: {
+        nowEasing: '雨が降っています。{time}頃にやむ見込みです。',
+        nowContinuing: '雨が降っています。この先12時間ほど続く見込みです。',
+        later: '{time}頃から雨が降りそうです。',
+        dry: 'この先12時間、雨の予報はありません。',
+      },
+      snow: {
+        nowEasing: '雪が降っています。{time}頃にやむ見込みです。',
+        nowContinuing: '雪が降っています。この先12時間ほど続く見込みです。',
+        later: '{time}頃から雪が降りそうです。',
+        dry: 'この先12時間、雪の予報はありません。',
+      },
+    },
+
+    daily: {
+      title: '{count}日間の予報',
+      spreadNote: '各バーの後ろの薄い帯は、予報サービス間のばらつきを示します。帯が広い日ほど、予報は不確かです。',
+      sky: '空模様',
+      windMax: '最大風速',
+      spreadTerm: '全サービスの予報の幅',
+      spreadValue: '{low}〜{high}',
+    },
+
+    tiles: {
+      title: '現在の気象状況',
+      uv: 'UV指数',
+      uvToday: '今日の最大: {value}',
+      sunriseAt: '日の出: {time}',
+      sunsetAt: '日の入り: {time}',
+      wind: '風',
+      windFrom: '{dir}の風',
+      gusts: '最大瞬間風速 {speed}',
+      rainSoFar: '今日これまで',
+      rainNext: 'この先24時間で{amount}の見込み。',
+      rainNoneNext: 'この先24時間、降水の見込みはありません。',
+      feelsLike: '体感温度',
+      feelsSame: '実際の気温とほぼ同じです。',
+      feelsHumid: '湿度が高く、実際より暑く感じます。',
+      feelsWarmer: '実際の気温より暑く感じます。',
+      feelsWindy: '風があり、実際より涼しく感じます。',
+      feelsCooler: '実際の気温より涼しく感じます。',
+      humidity: '湿度',
+      dewPoint: '現在の露点は{temp}です。',
+      visibility: '視程',
+      visClear: '見通しは良好です。',
+      visReduced: '見通しがやや悪くなっています。',
+      visPoor: '見通しが非常に悪いです。運転に注意してください。',
+      pressure: '気圧',
+      pressure_rising: 'この先3時間で上昇する見込み。',
+      pressure_falling: 'この先3時間で下降する見込み。',
+      pressure_steady: 'この先3時間はほぼ横ばい。',
+    },
+
+    uv: { low: '弱い', moderate: '中程度', high: '強い', veryHigh: '非常に強い', extreme: '極端に強い' },
+
+    compass: {
+      northLetter: '北',
+      n: '北', ne: '北東', e: '東', se: '南東',
+      s: '南', sw: '南西', w: '西', nw: '北西',
+    },
+
+    charts: {
+      title: '詳しいグラフ',
+      hint: '降水量・降水確率・気温・風を、すべての予報サービスから表示します。2週間は日ごと、1週間は時間ごとに、サービス間のばらつきとあわせて。',
+      show: 'グラフを表示',
+      hide: 'グラフを隠す',
+    },
   },
 }

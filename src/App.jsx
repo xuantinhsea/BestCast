@@ -1,61 +1,74 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AppHeader, FreshnessBar } from './components/AppHeader'
-import { Card, CardTitle, Choice, Notice, Button, Spinner } from './components/ui'
-import { LanguageChoice } from './components/LanguageSwitcher'
-import { LocationCard } from './sections/LocationCard'
-import { ParameterCard } from './sections/ParameterCard'
-import { AuthorCard } from './sections/AuthorCard'
+import { Button } from './components/ui'
+import { SkySpinner } from './components/SkySpinner'
+import { NowHero } from './sections/NowHero'
+import { HourlyStrip } from './sections/HourlyStrip'
+import { DailyList } from './sections/DailyList'
+import { DetailTiles } from './sections/DetailTiles'
+import { ChartsSection } from './sections/ChartsSection'
+import { LocationsSheet } from './sections/LocationsSheet'
+import { SettingsSheet } from './sections/SettingsSheet'
 import { I18nProvider } from './i18n/I18nProvider'
 import { useI18n } from './i18n/context'
 import { useEnsemble } from './hooks/useEnsemble'
-import { useSettings, TEXT_SCALES } from './hooks/useSettings'
+import { useSettings } from './hooks/useSettings'
 import { useOnline } from './hooks/useOnline'
 import { useGeolocation } from './hooks/useGeolocation'
 import { useNow } from './hooks/useNow'
+import { useSavedPlaces } from './hooks/useSavedPlaces'
 import { loadPlace, savePlace } from './core/storage'
 import { describePoint } from './core/geocode'
 import { fallbackPlace } from './core/defaults'
-import { PARAMETERS, todayIndex, nowIndex } from './core/ensemble'
-import { SYSTEMS, getSystem } from './core/units'
+import { todayIndex, nowIndex } from './core/ensemble'
+import { buildView } from './core/view'
+import { skyColors } from './core/conditions'
+import { getSystem } from './core/units'
 
 /**
- * One page. A map at the top to say where, four charts to say what, and the
- * settings underneath.
+ * One screen, laid out the way a phone's own weather app is: the place and
+ * the temperature at the top, then the next day hour by hour, the week, and
+ * the details. The background takes the colour of the sky outside.
  *
- * There is no navigation because there is nowhere to go: everything the app
- * knows is on this page, in the order someone reads it. A reader who has to
- * find a tab to see tomorrow's rain has been given a filing system instead of
- * a forecast.
+ * There is no navigation because there is nowhere to go. The two things that
+ * are not the forecast — choosing a place and the settings — slide up over it
+ * as sheets and close straight back onto it. The app's original charts, with
+ * every forecast service's figures, sit one tap away at the bottom.
  */
 function Weather() {
   const { t, locale, timeAgo } = useI18n()
   const [place, setPlaceState] = useState(loadPlace)
   const [naming, setNaming] = useState(false)
+  const [sheet, setSheet] = useState(null)   // null | 'places' | 'settings'
 
   const { settings, update: updateSettings } = useSettings()
   const online = useOnline()
   const { data, loading, error, refresh } = useEnsemble(place)
   const system = getSystem(settings.units)
   const now = useNow()
+  const { places: saved, remember, forget } = useSavedPlaces()
 
+  /** A place still waiting for its name is not listed among the saved ones;
+   *  it is remembered when the name arrives. */
   const setPlace = useCallback((next) => {
     setPlaceState(next)
     savePlace(next)
-  }, [])
+    if (!next.pending) remember(next)
+  }, [remember])
 
   /**
    * Takes a pair of coordinates and turns them into a named place.
    *
-   * The pin moves immediately and the forecast starts loading; the name catches
-   * up when the geocoder answers. Waiting for the name first would hold the
-   * whole page on a lookup that is not needed to draw a single chart.
+   * The forecast starts loading at once; the name catches up when the
+   * geocoder answers. Waiting for the name first would hold the whole screen
+   * on a lookup that is not needed to show a single number.
    */
   const adopt = useCallback(async (coords, known) => {
     if (known) {
-      setPlace({ lat: coords.lat, lon: coords.lon, name: known.name, detail: known.detail, namedIn: locale })
+      setPlace({ lat: coords.lat, lon: coords.lon, name: known.name, detail: known.detail ?? null, namedIn: known.namedIn ?? locale })
       return
     }
-    setPlace({ ...coords, name: t('location.findingName'), detail: null, namedIn: locale })
+    setPlace({ ...coords, name: t('location.findingName'), detail: null, namedIn: locale, pending: true })
     setNaming(true)
     try {
       const described = await describePoint(coords.lat, coords.lon, {
@@ -69,7 +82,7 @@ function Weather() {
   }, [setPlace, locale, t])
 
   const { locate, requestOnOpen, locating, error: gpsErrorKey, supported, clearError } =
-    useGeolocation((coords) => adopt(coords))
+    useGeolocation((coords) => { adopt(coords); setSheet(null) })
 
   /**
    * The opening move, run once.
@@ -117,108 +130,109 @@ function Weather() {
   }, [data, refresh])
 
   // Both marks are placed on the clock at the place being forecast, not on the
-  // reader's — see placeNow in ensemble.js.
+  // reader's — see placeNow in ensemble.js — and move on with the minute.
   const todayIdx = useMemo(
-    () => (data ? todayIndex(data.dayKeys, data.utcOffsetSeconds) : -1), [data])
+    () => (data ? todayIndex(data.dayKeys, data.utcOffsetSeconds, now) : -1), [data, now])
   const nowIdx = useMemo(
-    () => (data ? nowIndex(data.hourlyKeys, data.utcOffsetSeconds) : -1), [data])
+    () => (data ? nowIndex(data.hourlyKeys, data.utcOffsetSeconds, now) : -1), [data, now])
+  const view = useMemo(
+    () => (data ? buildView(data, { nowIdx, todayIdx, nowMs: now }) : null), [data, nowIdx, todayIdx, now])
+
+  // The screen takes the colour of the sky now; the browser's own bar (the
+  // status bar of an installed app) follows it so the two run together.
+  const [skyTop, skyBottom] = skyColors(view?.now.condition.sky ?? 'clear-day')
+  useEffect(() => {
+    document.querySelectorAll('meta[name="theme-color"]').forEach((m) => m.setAttribute('content', skyTop))
+  }, [skyTop])
+
+  const closeSheet = useCallback(() => setSheet(null), [])
+  const updatedLabel = data ? timeAgo(data.fetchedAt, now) : null
 
   return (
-    <div className="app-shell flex flex-col bg-plane">
-      <AppHeader onRefresh={refresh} refreshing={loading} canRefresh={!!place} />
+    <div
+      className="app-shell sky flex flex-col"
+      style={{ '--sky-top': skyTop, '--sky-bottom': skyBottom }}
+    >
+      <div className="flex-1 min-h-0 flex flex-col" inert={sheet != null}>
+        <AppHeader onOpenSettings={() => setSheet('settings')} />
 
-      <FreshnessBar
-        online={online}
-        error={error}
-        fetchedAt={data?.fetchedAt}
-        onRefresh={refresh}
-      />
+        <FreshnessBar online={online} error={error} fetchedAt={data?.fetchedAt} onRefresh={refresh} />
 
-      {/* overscroll-contain stops a swipe past the end from dragging the whole
-          page and bouncing the header away. */}
-      <main className="flex-1 overflow-y-auto overscroll-contain">
-        <div className="mx-auto w-full max-w-6xl p-4 flex flex-col gap-4">
-          <LocationCard
-            place={place}
-            naming={naming}
-            onPickCoords={(coords) => adopt(coords)}
-            onSelectFound={(found) => adopt({ lat: found.lat, lon: found.lon }, found)}
-            onLocate={locate}
-            locating={locating}
-            gpsError={gpsErrorKey ? t(gpsErrorKey) : null}
-            gpsSupported={supported}
-            onClearGpsError={clearError}
-          />
+        {/* overscroll-contain stops a swipe past the end from dragging the whole
+            page and bouncing the header away. `relative` makes this the box
+            the visually hidden labels are positioned in: without it they are
+            placed against the page, far below the fold, and the whole page —
+            header and all — becomes scrollable behind the forecast. */}
+        <main className="relative flex-1 overflow-y-auto overscroll-contain">
+          <div className="mx-auto w-full max-w-2xl px-3.5 pb-6 flex flex-col gap-3.5">
+            <NowHero
+              place={place}
+              view={view}
+              system={system}
+              onOpenPlaces={() => setSheet('places')}
+              refreshing={loading}
+              onRefresh={refresh}
+              updatedLabel={updatedLabel}
+            />
 
-          {loading && !data && <Spinner label={t('states.loading')} />}
+            {loading && !data && <SkySpinner label={t('states.loading')} />}
 
-          {!loading && !data && place && (
-            <Notice
-              title={t('states.errorTitle')}
-              tone="critical"
-              action={<Button variant="primary" onClick={refresh}>{t('states.retry')}</Button>}
-            >
-              {t(error ?? 'states.errorBody')}
-            </Notice>
-          )}
+            {!loading && !data && place && (
+              <div className="glass p-4" role="status">
+                <p className="text-lg font-bold">{t('states.errorTitle')}</p>
+                <p className="text-base mt-1">{t(error ?? 'states.errorBody')}</p>
+                <Button variant="secondary" className="mt-3" onClick={refresh}>{t('states.retry')}</Button>
+              </div>
+            )}
 
-          {/* On a phone these stack; on a wide screen they pair up, so the
-              page stops being a single very long column.
-
-              grid-cols-1 is not redundant: without an explicit template the
-              implicit track is auto-sized to max-content, and the wide hourly
-              strip inside a card drags the whole page off the screen. */}
-          {data && (
-            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-              {PARAMETERS.map((parameter) => (
-                <ParameterCard
-                  key={parameter.id}
-                  parameter={parameter}
+            {view && (
+              <>
+                <HourlyStrip view={view} system={system} />
+                <DailyList view={view} system={system} nowTemp={view.now.temp} />
+                <DetailTiles view={view} system={system} />
+                <ChartsSection
+                  open={settings.showCharts}
+                  onToggle={() => updateSettings({ showCharts: !settings.showCharts })}
                   data={data}
                   system={system}
                   todayIdx={todayIdx}
                   nowIdx={nowIdx}
                 />
-              ))}
-            </div>
-          )}
+              </>
+            )}
 
-          <Card>
-            <CardTitle>{t('settings.title')}</CardTitle>
-            <div className="flex flex-col gap-5">
-              <LanguageChoice />
-              <Choice
-                name="units"
-                legend={t('settings.units')}
-                value={settings.units}
-                onChange={(units) => updateSettings({ units })}
-                options={Object.values(SYSTEMS).map((s) => ({ value: s.id, label: s.short }))}
-              />
-              <Choice
-                name="textScale"
-                legend={t('settings.textSize')}
-                value={settings.textScale}
-                onChange={(textScale) => updateSettings({ textScale })}
-                options={TEXT_SCALES.map((s) => ({ value: s.value, label: t(s.messageKey) }))}
-              />
-            </div>
-          </Card>
+            <button
+              type="button"
+              onClick={() => setSheet('settings')}
+              aria-haspopup="dialog"
+              className="glass w-full min-h-[3.4rem] px-4 text-left text-lg font-semibold
+                         flex items-center justify-between active:bg-black/30"
+            >
+              <span>{t('settings.title')}</span>
+              <span className="text-base font-medium">{t('settings.summary')}</span>
+            </button>
 
-          <Card>
-            <CardTitle>{t('about.title')}</CardTitle>
-            <p className="text-lg text-ink-2">{t('about.body')}</p>
-            <p className="text-base text-muted mt-3">{t('about.credits')}</p>
-          </Card>
+            <p className="text-center text-sm">{t('about.credits')}</p>
+          </div>
+        </main>
+      </div>
 
-          <AuthorCard />
-
-          {data && (
-            <p className="text-base text-muted text-center pb-2">
-              {timeAgo(data.fetchedAt, now)}
-            </p>
-          )}
-        </div>
-      </main>
+      <LocationsSheet
+        open={sheet === 'places'}
+        onClose={closeSheet}
+        place={place}
+        saved={saved}
+        onForget={forget}
+        onPickCoords={(coords) => adopt(coords)}
+        onSelectFound={(found) => adopt({ lat: found.lat, lon: found.lon }, found)}
+        onSelectSaved={(p) => adopt({ lat: p.lat, lon: p.lon }, p)}
+        onLocate={locate}
+        locating={locating}
+        gpsError={gpsErrorKey ? t(gpsErrorKey) : null}
+        gpsSupported={supported}
+        onClearGpsError={clearError}
+      />
+      <SettingsSheet open={sheet === 'settings'} onClose={closeSheet} settings={settings} onChange={updateSettings} />
     </div>
   )
 }
